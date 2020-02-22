@@ -1,0 +1,18 @@
+{
+  "name": "redeploymentSame",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Martinet Lee",
+  "license": "ISC",
+  "dependencies": {
+    "ganache-cli": "^6.9.0",
+    "truffle": "^5.1.9"
+  },
+  "devDependencies": {
+    "solhint": "^1.4.0"
+  }
+}
