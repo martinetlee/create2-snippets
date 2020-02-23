@@ -1,4 +1,4 @@
-# create2-snippets
+# Create2-Snippets
 
 This repository provides some code snippets that are useful for `create2` that was introduced in Ethereum Constantinople update. 
 
@@ -68,7 +68,7 @@ bytes memory creationCode = type(DeployMe).creationCode;
 
 Recall that creationCode is not the `initCode` yet. If the constructor of the target contract `DeployMe` needs arguments, then you will need to append the encoded arguments after the creationCode. If not, then the `creationCode` would be the `initCode` that we needed. 
 
-* If the contract's contstructor don't have arguments: 
+* If the contract's contstructor doesn't have arguments: 
 
 ```
 contract DeployMe{
@@ -81,7 +81,7 @@ contract DeployMe{
 bytes memory initCode = creationCode;
 ```
 
-* If the contract's constructor have arguments: 
+* If the contract's constructor has arguments: 
 ```
 contract DeployMe{
   constructor(uint256 someNumber, address someAddress){
@@ -99,7 +99,49 @@ The above would come very handy when developing in solidity. To write tests, we 
 
 In the json files, you could find two pieces of bytecode: one labeled as `bytecode` and the other labeled as `deployedBytecode`. The `bytecode` is the `creationCode` and the `deployedBytecode` is the `runtime bytecode` that we have mentioned above. They could be imported through a require statement. 
 
-```
+```javascript
 const { abi: DeployMeABI, bytecode: DeployMeCreationCode } = require('../build/contracts/DeployMe.json');
 ```
+
+We will also need to append the arguments right after the `creationCode` as in Solidity.
+
+* If the contract's contstructor doesn't have arguments: 
+
+```javascript
+
+```
+
+* If the contract's constructor has arguments:
+
+```javascript
+
+
+```
+
+## Off-chain address calculation
+
+
+## Mixing create2 with Proxy pattern
+
+### Method 1: mix the `msg.sender` with salt
+
+### Method 2: initialize the proxy in the same transaction
+
+
+
+## Dealing with solidity-coverage
+
+
+## Reincarnation: Self-destruct then redeploy the same contract
+
+
+### Note: How does a reincarnated contract show on EtherScan?
+
+
+## Metamorphic contracts: Deploying different contracts at the same address
+
+The term Metamorphic contract is beautifully coined by `0age`, his blog post ["The Promise and the Peril of Metamorphic Contracts"](https://medium.com/@0age/the-promise-and-the-peril-of-metamorphic-contracts-9eb8b8413c5e) is very comprehensive and definitely worth a read. Saying a contract to be metamorphic basiccaly means that it is possible to deploy different contracts at the same address via `create2`.
+
+We will use a dummy target contract and mess around with its `constructor`. When we're done, the code would look like it is deploying the dummy target contract, but it would actually deploy some arbitrary contract that is stored somewhere else.
+
 
