@@ -142,6 +142,44 @@ We will also need to append the arguments right after the `creationCode` as in S
 
 The term Metamorphic contract is beautifully coined by `0age`, his blog post ["The Promise and the Peril of Metamorphic Contracts"](https://medium.com/@0age/the-promise-and-the-peril-of-metamorphic-contracts-9eb8b8413c5e) is very comprehensive and definitely worth a read. Saying a contract to be metamorphic basiccaly means that it is possible to deploy different contracts at the same address via `create2`.
 
-We will use a dummy target contract and mess around with its `constructor`. When we're done, the code would look like it is deploying the dummy target contract, but it would actually deploy some arbitrary contract that is stored somewhere else.
+We will use a dummy target contract and mess around with its `constructor`. When we're done, the code would look a bit funky and people might not understand what it is for at first glance, but it would actually deploy some arbitrary contract that is stored somewhere else.
+
+The reason we tinker its `constructor` is that this is the part that is related to its `creationCode` but not the `runtime bytecode` of our dummy target contract. As we've learned in the basic concepts, EVM would deploy whatever bytecode that the initCode returns. Using this, our goal then becomes very simple: we just need the initCode to return arbitrary code that we point to! 
+
+Let's first create a storage for the code and a flag to do bad things in the factory contract:
+
+```
+contract MetamorphicFactory {
+// ...
+  bytes public realInitCode;
+  bool public timeToMorph;
+// ...
+}
+```
+
+What I want to do here is when the `timeToMorph` is `true`, then the `deployContract` method should deploy whatever contract I have set in the `realInitCode` and when it is `false`, it should deploy our dummy target contract.
+
+To do this, we can write our contrustor as below:
+
+```
+  constructor() public {
+    // msg.sender is the factory
+    MetamorphicFactory mf = MetamorphicFactory(msg.sender);
+    if(mf.timeToMorph() == true){
+      // return(p, s) - F end execution, return data mem[p…(p+s))
+      bytes memory trueCode = mf.realInitCode();
+      assembly{
+        return(add(trueCode, 0x20), mload(trueCode))
+      }
+    }
+  }
+```
+
+Since the factory deploys the contract, the `msg.sender` then is exactly our factory. Thus we can read the flag and code by converting the `msg.sender` to the factory contract. The only thing left we needed to do is to return the code we wanted to deploy. The assembly `return` takes two parameters: one where the data starts, the other the length of the data. As it is stored in a `bytes memory`, the first 32 bytes is length and the data starts after the 32 bytes. Thus we use `add(trueCode, 0x20)` to indicate the start of the data location, and `mload(trueCode)` to get the length of the data.
+
+MetamorphicFactory: https://rinkeby.etherscan.io/address/0x940fe419f7b3460f38e60a850676b7235d5ae792#code
+
+DummyContract: https://rinkeby.etherscan.io/address/0x536a9181b6bf94822fb0aad25a1bf56e04c3d079#code
+
 
 

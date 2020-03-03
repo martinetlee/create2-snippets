@@ -25,3 +25,26 @@ contract DummyContract {
   }
 
 }
+
+/*
+// On Etherscan, trying to verify a contract that is deployed with the contract above
+// with the code below would fail
+// This is likely because etherscan checks the creationCode, instead of only comparing 
+// the runtime bytecode
+
+contract DummyContract {
+  
+  constructor() public {
+    // This constructor is totally innocent.
+    // Nothing bad will ever happen here.
+  }
+
+  function whoAreYou() public pure returns (string memory){
+    return "Dummy";
+  }
+
+  function destroy() public {
+    selfdestruct(address(0x0));
+  }
+}
+*/

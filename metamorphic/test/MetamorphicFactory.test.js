@@ -100,11 +100,8 @@ contract("MetamorphicFactory", async function(accounts) {
     identity = await butterflyContract.whoAreYou();
     console.log("Identity of deployed contract: " + identity);
     console.log("\tDeployed contract address :" + args['contractAddr']);
-    console.log("This should be the same address as the off-chain calculation");
-    console.log("which means: (1) it succesfully deployed (2) it deployed to the same address");
-
-    console.log(await web3.eth.getCode(args['contractAddr']));
-
+    console.log("This should be the same address as the off-chain calculation, but with different identiy");
+    console.log("which means: (1) it succesfully deployed (2) it deployed to the same address (3) A different contract has been deployed to the same address");
   });
 
 });
