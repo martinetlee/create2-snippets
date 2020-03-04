@@ -2,6 +2,12 @@
 
 This repository provides some code snippets that are useful for `create2` that was introduced in Ethereum Constantinople update. 
 
+## Disclaimer
+
+All the code presented here is for educational purposes and is intentially simplified. It is certainly not designed with all the security considerations in mind, in fact, some of those are ripped off to make it glaringly clear on the core code I wanted to demonstrate.
+
+Do not use the code here in production whatsoever.
+
 ## Environment
 
 The article uses the following environment for solidity development and testing:
@@ -107,21 +113,80 @@ We will also need to append the arguments right after the `creationCode` as in S
 
 * If the contract's contstructor doesn't have arguments: 
 
-```javascript
-
+```
+bytes memory initCode = type(DeployMe).creationCode;
 ```
 
 * If the contract's constructor has arguments:
 
-```javascript
-
-
+```
+bytes memory initCode = abi.encodePacked(type(Wallet).creationCode, abi.encode(arg1, arg2, arg3));
 ```
 
 ## Off-chain address calculation
 
 
+## A super simple smart contract wallet.
+
+One of the use cases of `create2` is that it is now possible for people to send funds to an address that could be later claimed by a certain contract. We will implement the most basic one possible, once the smart contract is instantiated, the owner is able to transfer Ether away to some other address. 
+
+```
+contract Wallet{
+  address public _owner;
+  constructor(owner){
+    _owner = owner;
+  }
+
+  function sendEtherTo(address payable recepient, uint256 amount) public {
+    recepient.send(amount);
+  }
+}
+```
+
+
+```
+contract WalletFactory{
+  // ....
+
+  function deployWallet(address designatedOwner, uint256 salt){
+    
+    bytes memory initCode = abi.encodePacked(type(Wallet).creationCode, designatedOwner);
+
+    address deployedContract;
+    assembly{
+      deployedContract := create2(0, add(initCode, 0x20), mload(initCode), salt)
+    }
+    emit ContractDeployed(deployedContract);
+  }
+}
+```
+
+Since we use the `owner` for the argument of the Wallet contract, it becomes part of the `initCode` in the WalletFactory. This means that we've guaranteed that given an address calculated with the `initCode` and `salt`, the wallet would be owned by the same `owner` once it is deployed. I call this effect a `Lock`: we've locked the ownership information with the deployed address by incorporating it as part of the constructor arguments. 
+
+Another way to lock information with the deployed address is to incorporate it into the salt, though there is one major difference:
+
+In the context of the deployed contract, the `initCode` lock can execute some code according to the locked information, whereas the `salt` lock could not. While one could execute code in the `deployWallet` method in the factory, it is a weaker guarantee for users as the factory may be upgradable. If the factory is upgradable, the owner of the factory can in fact change the code and thus the information is not guaranteed for the user. 
+
+
 ## Mixing create2 with Proxy pattern
+
+Some developers may want to make the deployed smart contract to be upgradable by using the proxy pattern. This means that the smart contract deployed by the factory would be the proxy that forwards the call to the logic contract. Typically, the proxy needs to be initialized after the deployment and we could only set the variables related to the logic contract when doing initialization (instead of the constructor). While we could certainly do this in the same `deployContract` method in the factory, this would have impact in the address calculation and creates some minor issues that we would need to solve. 
+
+To demonstrate the issue, suppose that we want to make the wallet above upgradable and certainly make the wallet to be owned by the legitimate user. In the non-upgradable version above, the steps are as follow:
+
+1. A user calls the `deployContract`, submitting the argument `salt` and `owner`.
+2. Miner executes the transaction, and the following happens atomically:
+  * `initCode` is created with constructor arguments: `owner` to claim the ownership.
+  * `create2` is called with `salt` and `initCode`
+
+As we can see, in the non-upgradable version, since the `owner` is fixed into the `initCode`, it is guaranteed that the deployed smart contract would be owned by the specified owner.
+
+Now let us make this upgradable. We will need to move the arguments in the constructor arguments to a initalize function and called it later. 
+
+### A small problem
+
+Recall that we used the constructor arguments to "lock" the address and ownership information in the previous example. Since we are using the proxy pattern, 
+
 
 ### Method 1: mix the `msg.sender` with salt
 
@@ -176,6 +241,12 @@ To do this, we can write our contrustor as below:
 ```
 
 Since the factory deploys the contract, the `msg.sender` then is exactly our factory. Thus we can read the flag and code by converting the `msg.sender` to the factory contract. The only thing left we needed to do is to return the code we wanted to deploy. The assembly `return` takes two parameters: one where the data starts, the other the length of the data. As it is stored in a `bytes memory`, the first 32 bytes is length and the data starts after the 32 bytes. Thus we use `add(trueCode, 0x20)` to indicate the start of the data location, and `mload(trueCode)` to get the length of the data.
+
+
+### Note: How does metamorphic contract show on Etherscan?
+
+The verification on Etherscan seems to include the "creationCode", therefore one cannot use a contract that would produce the same runtime bytecode to verify the dummy target contract. 
+
 
 MetamorphicFactory: https://rinkeby.etherscan.io/address/0x940fe419f7b3460f38e60a850676b7235d5ae792#code
 
