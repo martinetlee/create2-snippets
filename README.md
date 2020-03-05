@@ -4,7 +4,7 @@ This repository provides some code snippets that are useful for `create2` that w
 
 ## Disclaimer
 
-All the code presented here is for educational purposes and is intentially simplified. It is certainly not designed with all the security considerations in mind, in fact, some of those are ripped off to make it glaringly clear on the core code I wanted to demonstrate.
+All the code presented here is for educational purposes and is intentionally simplified. It is certainly not designed with all the security considerations in mind, in fact, some of those are ripped off to make it glaringly clear on the core code I wanted to demonstrate.
 
 Do not use the code here in production whatsoever.
 
