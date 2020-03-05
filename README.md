@@ -133,7 +133,7 @@ One of the use cases of `create2` is that it is now possible for people to send 
 ```
 contract Wallet{
   address public _owner;
-  constructor(owner){
+  constructor(owner) public {
     _owner = owner;
   }
 
@@ -181,20 +181,114 @@ To demonstrate the issue, suppose that we want to make the wallet above upgradab
 
 As we can see, in the non-upgradable version, since the `owner` is fixed into the `initCode`, it is guaranteed that the deployed smart contract would be owned by the specified owner.
 
-Now let us make this upgradable. We will need to move the arguments in the constructor arguments to a initalize function and called it later. 
+Now let us make this upgradable. We will need to move the arguments in the constructor arguments to an `initalizer` function and called it later. We will also modify the factory deploy method so that it deploys the proxy then updates the implementation of the proxy to the wallet implementation. (Assuming that the wallet implementation is deployed and recorded in the factory as an address `walletImplementation`.)
 
-### A small problem
+```
+contract Wallet{
+  address public _owner;
+  constructor() public {
+  }
 
-Recall that we used the constructor arguments to "lock" the address and ownership information in the previous example. Since we are using the proxy pattern, 
+  function initializer(address owner) public{
+    _owner = owner;
+  }
+
+  function sendEtherTo(address payable recepient, uint256 amount) public {
+    recepient.send(amount);
+  }
+}
+```
+
+We can call the `initializer` function in the `deployWallet` function right after it is being deployed. 
+
+```
+contract WalletFactory{
+  // .... 
+  // this piece of code has security issue, DO NOT USE
+
+  address walletImplementation;
+
+  function deployWallet(address designatedOwner, uint256 salt){
+    
+    bytes memory initCode = abi.encodePacked(type(Proxy).creationCode);
+
+    address deployedContract;
+    assembly{
+      deployedContract := create2(0, add(initCode, 0x20), mload(initCode), salt)
+    }
+
+    Proxy(deployedContract).updateImplementation(walletImplementation);
+
+    Wallet(deployedContract).initializer(designatedOwner);
+    emit ContractDeployed(deployedContract);
+  }
+}
+```
 
 
-### Method 1: mix the `msg.sender` with salt
+### Oops, we got a problem: Front-running
 
-### Method 2: initialize the proxy in the same transaction
+Recall that we used the constructor arguments to "lock" the address and ownership information in the previous example. Since we are using the proxy pattern, we had claimed ownership using the `initializer` function in the same function. This, however, is susceptible to front-running problem and it is possible to have other people claim ownership of the very same address. 
+
+We can see that the deployed address is not calculated with the ownership information, thus, when the legitimate user submits the `salt` in a transaction, an attacker can submit another transaction with the same `salt` but different `designatedOwner` and a higher gas price. It is likely that miners would then pick up the transaction with the higher gas price and the attacker would have successfully claimed the ownership of the Wallet. 
+
+To solve this, we would want to make the deployed address to be calculated with the ownership information. Apparantly there are two ways of doing this: either you mix the information into the salt, or you put the information into the constructor arguments.
 
 
+### Method 1: mixing with salt
+
+A new salt can be calculated with the ownership information as below, then used to pass in the `create2` function.
+
+```
+bytes32 newSalt = keccak256(abi.encodePacked(salt, designatedOwner));
+```
+
+Note: a lot of online tutorial uses `msg.sender` here. I'd like to note that using `msg.sender` as ownership information would limit the system in the sense that only the legitimate owner can deploy the contract himself. By using an input that indicates the ownership information, it allows anyone to help the legitimate owner to deploy the contract. 
+
+Why would someone do this? Well, this is pretty useful if a platform wants to help deploy the contracts on behalf of users so that the users don't need to pay for gas.
+
+### Method 2: still, provide it to the Proxy arguments
+
+As the address is calcualted with the `initCode`, we could also modify the Proxy contract so that it takes the ownership information as the constructor. While this method is "uglier" because one needs to modify the Proxy contract, it CAN (but not necessarily) guarantee a better security for user. 
+
+For example, we could have the Proxy contract to store the ownership information in an unstructured storage:
+
+```
+contract Proxy{
+// ...
+  bytes32 private constant OWNERSHIP_POSITION = keccak256("wallet.ownership.information");
+  constructor(address designatedOwner) public {
+      bytes32 position = OWNERSHIP_POSITION;
+      assembly {
+        sstore(position, designatedOwner)
+      }
+  }
+// ...
+}
+```
+
+Then in the Wallet implementation, the `initializer` reads the ownership information from the same storage:
+
+```
+contract Wallet{
+  // ...
+  bytes32 private constant OWNERSHIP_POSITION = keccak256("wallet.ownership.information");
+
+  function initializer() public{
+    address designatedOwner;
+    bytes32 position = OWNERSHIP_POSITION;
+    assembly {
+      designatedOwner := sload(position)
+    }
+    _owner = designatedOwner; 
+  }
+  // ...
+}
+```
 
 ## Dealing with solidity-coverage
+
+
 
 
 ## Reincarnation: Self-destruct then redeploy the same contract
